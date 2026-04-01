@@ -159,7 +159,13 @@ const StudentManager = {
         document.getElementById('studentModal').classList.remove('show');
     },
     save: async () => {
+        const btn = document.getElementById('btn-save-student');
+        if (btn.disabled) return;
+        btn.disabled = true;
+
         const id = document.getElementById('student-id').value || 'HS' + new Date().getTime();
+        document.getElementById('student-id').value = id; // Khóa ID vào ô ẩn để tránh sinh ID mới nếu ấn đúp
+
         const student = {
             ID: id,
             Name: document.getElementById('student-name').value.trim(),
@@ -173,6 +179,7 @@ const StudentManager = {
         
         if(!student.Name || !student.Class) {
             alert('Vui lòng nhập đủ các trường bắt buộc (*)');
+            btn.disabled = false;
             return;
         }
 
@@ -186,22 +193,21 @@ const StudentManager = {
             renderClassSettings();
         }
 
-        showLoader('Đang lưu hệ thống...');
-        const res = await fetchGAS('saveStudent', student);
-        hideLoader();
-        
-        if(res) {
-            StudentManager.closeModal();
-            // Tối ưu Tốc độ: Render bằng bộ nhớ tạm để khỏi chờ load lại Sheets
-            const existIdx = AppState.students.findIndex(s => s.ID === student.ID);
-            if(existIdx > -1) {
-                AppState.students[existIdx] = student;
-            } else {
-                AppState.students.push(student);
-            }
-            document.getElementById('stat-total-students').innerText = AppState.students.length;
-            renderStudentTable();
+        // Cập nhật giao diện TỨC THÌ (Optimistic UI) cho tốc độ SIÊU NHANH
+        StudentManager.closeModal();
+        const existIdx = AppState.students.findIndex(s => s.ID === student.ID);
+        if(existIdx > -1) {
+            AppState.students[existIdx] = student;
+        } else {
+            AppState.students.push(student);
         }
+        document.getElementById('stat-total-students').innerText = AppState.students.length;
+        renderStudentTable();
+        btn.disabled = false;
+
+        // Đẩy lên máy chủ lưu ngầm (Không block màn hình)
+        fetchGAS('saveStudent', student);
+        btn.disabled = false;
     }
 };
 
@@ -335,18 +341,14 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
         if(isLate) lates.push(id);
     });
 
-    showLoader('Đang lưu thông tin điểm danh...');
     const payload = { date, className, absents: absents.join(','), lates: lates.join(',') };
-    const res = await fetchGAS('saveAttendance', payload);
-    hideLoader();
     
-    if(res) {
-        alert('Cập nhật điểm danh thành công!');
-        document.getElementById('attendance-panel').style.display = 'none';
-        
-        // Cập nhật số liệu quick dashboard
-        document.getElementById('stat-attendance-today').innerText = 'Đã cập nhật';
-    }
+    // Cập nhật giao diện đóng bảng TỨC THÌ
+    document.getElementById('attendance-panel').style.display = 'none';
+    document.getElementById('stat-attendance-today').innerText = 'Đã lưu (Ngầm)';
+    
+    // Gửi lệnh lưu lên máy chủ chạy nền
+    fetchGAS('saveAttendance', payload);
 });
 
 /* --- 6. MODULE HỌC PHÍ & BÁO CÁO --- */
@@ -414,35 +416,32 @@ function renderClassSettings() {
     `).join('');
 }
 
-document.getElementById('btn-add-class').addEventListener('click', async () => {
+document.getElementById('btn-add-class').addEventListener('click', () => {
     const className = document.getElementById('new-class-name').value.trim();
     if(className) {
-        showLoader('Đang thêm lớp mới...');
-        const res = await fetchGAS('saveClass', { ClassName: className, Fee: 50000 });
-        hideLoader();
-        if(res) {
-            document.getElementById('new-class-name').value = '';
-            // Tối ưu Tốc độ: Render bằng bộ nhớ tạm
-            AppState.classes.push({ ClassName: className, Fee: 50000 });
-            document.getElementById('stat-total-classes').innerText = AppState.classes.length;
-            populateClassSelects();
-            renderClassSettings();
-        }
+        document.getElementById('new-class-name').value = '';
+        
+        // Render UI lập tức
+        AppState.classes.push({ ClassName: className, Fee: 50000 });
+        document.getElementById('stat-total-classes').innerText = AppState.classes.length;
+        populateClassSelects();
+        renderClassSettings();
+        
+        // Bắn API chạy ngầm
+        fetchGAS('saveClass', { ClassName: className, Fee: 50000 });
     }
 });
 
-window.updateClassFee = async (className) => {
+window.updateClassFee = (className) => {
     const feeInfo = document.getElementById(`fee-${className}`).value;
-    showLoader('Đang cập nhật học phí...');
-    const res = await fetchGAS('saveClass', { ClassName: className, Fee: Number(feeInfo) });
-    hideLoader();
-    if(res) {
-        alert('Cập nhật thành công!');
-        // Tối ưu Tốc độ: Render bằng bộ nhớ tạm
-        const cls = AppState.classes.find(c => c.ClassName === className);
-        if(cls) cls.Fee = Number(feeInfo);
-        renderClassSettings();
-    }
+    
+    // Tối ưu Tốc độ: Render UI tức thì
+    const cls = AppState.classes.find(c => c.ClassName === className);
+    if(cls) cls.Fee = Number(feeInfo);
+    renderClassSettings();
+    
+    // Lưu chạy ngầm
+    fetchGAS('saveClass', { ClassName: className, Fee: Number(feeInfo) });
 };
 
 // Auto Set Today for Attendance Date input
