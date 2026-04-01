@@ -83,9 +83,9 @@ function hideLoader() {
     document.getElementById('global-loader').style.display = 'none';
 }
 
-/* --- 2. API REQUEST WRAPPER --- */
+/* --- 2. API REQUEST WRAPPER & AUTO-RETRY --- */
 
-async function fetchGAS(action, payload = {}) {
+async function fetchGAS(action, payload = {}, retries = 3) {
     if(!AppState.apiUrl) return null;
     try {
         const response = await fetch(AppState.apiUrl, {
@@ -95,24 +95,40 @@ async function fetchGAS(action, payload = {}) {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
         
-        const rawText = await response.text(); // Lấy chữ thô trước để soi
+        const rawText = await response.text(); 
         try {
             const result = JSON.parse(rawText);
             if(result.status === 'success') {
                 return result.data;
             } else {
                 console.error('GAS Error:', result.message);
-                alert('Lỗi: ' + result.message);
+                if(retries === 0) alert('Lỗi: ' + result.message);
                 return null;
             }
         } catch(e) {
+            // Xảy ra khi máy chủ Google bị quá tải và trả về mã HTML (trang đăng nhập/cảnh báo)
+            if (retries > 0) {
+                console.warn(`[Auto-Retry] Google Server thả mã HTML thay vì JSON. Đang thử móc lại dữ liệu... (Còn ${retries} lần tái yêu cầu)`);
+                await new Promise(resolve => setTimeout(resolve, 1500)); // Nghỉ 1.5 giây để Google thông mạng
+                return await fetchGAS(action, payload, retries - 1);
+            }
+            
+            // Xịt cả 3 lần
             console.error('Raw HTML received:', rawText);
-            alert('Google Server đã chặn luồng API và trả về một mã HTML lạ. Nội dung:\n\n' + rawText.substring(0, 300) + '...');
+            alert('Hệ thống Google kết nối quá kém và đã từ chối cập nhật dữ liệu của bạn.\n\nVui lòng BẤM LẠI NÚT LƯU hoặc F5 TẢI LẠI TRANG để tránh thất thoát dữ liệu thao tác vừa rồi!');
+            if (document.getElementById('global-loader').style.display === 'flex') {
+                 hideLoader();
+            }
             return null;
         }
     } catch(err) {
+        if (retries > 0) {
+            console.warn(`[Auto-Retry] Rớt mạng/CORS. Đang thử lại... (Còn ${retries} lần tái yêu cầu)`);
+            await new Promise(resolve => setTimeout(resolve, 1500)); 
+            return await fetchGAS(action, payload, retries - 1);
+        }
         console.error('Fetch Network/CORS Error:', err);
-        alert('Trình duyệt đã chặn hẳn mạng (Lỗi Mạng/CORS)!\nChi tiết: ' + err.name + ' - ' + err.message);
+        alert('Máy của bạn đã mất mạng hoàn toàn hoặc trình duyệt chặn luồng tải (Lỗi Mạng/CORS)!');
         return null;
     }
 }
