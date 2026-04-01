@@ -103,7 +103,7 @@ async function fetchGAS(action, payload = {}) {
         }
     } catch(err) {
         console.error('Fetch Error:', err);
-        alert('Không thể kết nối tới máy chủ dữ liệu lúc này. Vui lòng kiểm tra mạng Internet.');
+        alert('Hệ thống bị chặn kết nối tới dữ liệu máy chủ!\n\nLỗi chi tiết: ' + err.name + ' - ' + err.message + '\n\nNguyên nhân 99%: Do trình duyệt của bạn đang bật Tiện ích chặn quảng cáo (Adblock) hoặc dùng trình duyệt đặc biệt (Brave) hoặc Safari đang bật "Chống theo dõi trang web" nên nó chặn kho cờ sở dữ liệu gốc của Google.\n\nCách xử lý: \n=> HÃY TẮT CÁC PHẦN MỀM CHẶN QUẢNG CÁO CHO TRANG NÀY RỒI F5 LẠI!');
         return null;
     }
 }
