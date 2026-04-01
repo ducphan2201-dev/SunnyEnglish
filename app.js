@@ -7,6 +7,7 @@ const AppState = {
     apiUrl: (typeof CONFIG !== 'undefined' && CONFIG.GAS_URL) ? CONFIG.GAS_URL : (localStorage.getItem('GAS_URL') || ''),
     classes: [],
     students: [],
+    attendances: [],
     theme: localStorage.getItem('theme') || 'light'
 };
 
@@ -117,6 +118,7 @@ async function loadInitialData() {
     if(data) {
         AppState.classes = data.classes || [];
         AppState.students = data.students || [];
+        AppState.attendances = data.attendances || []; // Load toàn bộ điểm danh lịch sử vào RAM
         
         // Update Dashboard
         document.getElementById('stat-total-students').innerText = AppState.students.length;
@@ -270,21 +272,19 @@ document.getElementById('btn-load-attendance').addEventListener('click', async (
         return;
     }
     
-    showLoader('Đang nạp danh sách điểm danh...');
-    const data = await fetchGAS('getAttendance', { date, className });
-    hideLoader();
+    // Tối ưu UI: Lấy dữ liệu ngay mặt từ RAM mà KHÔNG CẦN gọi fetchGAS
+    const attRecord = AppState.attendances.find(a => a.className === className && a.date === date);
     
-    if(data) {
-        document.getElementById('attendance-panel').style.display = 'block';
-        document.getElementById('att-class-name').innerText = className;
+    document.getElementById('attendance-panel').style.display = 'block';
+    document.getElementById('att-class-name').innerText = className;
         
-        // Mặc định tất cả Có mặt nếu chưa có dữ liệu. Data trả về danh sách vắng/muộn nếu có.
-        const studentsInClass = AppState.students.filter(s => s.Class === className && s.Status === 'Đang học');
-        const absents = data.absents || []; // Array of IDs
-        const lates = data.lates || [];     // Array of IDs
+    // Mặc định tất cả Có mặt nếu chưa có dữ liệu
+    const studentsInClass = AppState.students.filter(s => s.Class === className && s.Status === 'Đang học');
+    const absents = attRecord ? attRecord.absents : []; 
+    const lates = attRecord ? attRecord.lates : [];
         
-        const tbody = document.getElementById('attendance-table-body');
-        if(studentsInClass.length === 0) {
+    const tbody = document.getElementById('attendance-table-body');
+    if(studentsInClass.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center">Không có học viên nào trong lớp này.</td></tr>';
             return;
         }
@@ -306,7 +306,6 @@ document.getElementById('btn-load-attendance').addEventListener('click', async (
             </tr>
             `;
         }).join('');
-    }
 });
 
 // Hàm xử lý nếu check Vắng mặt thì disabled check Đi muộn
@@ -347,6 +346,14 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
     document.getElementById('attendance-panel').style.display = 'none';
     document.getElementById('stat-attendance-today').innerText = 'Đã lưu (Ngầm)';
     
+    // Lưu vào RAM ngay lập tức
+    const existIdx = AppState.attendances.findIndex(a => a.date === date && a.className === className);
+    if(existIdx > -1) {
+        AppState.attendances[existIdx] = { date, className, absents, lates, IDKey: date + "_" + className };
+    } else {
+        AppState.attendances.push({ date, className, absents, lates, IDKey: date + "_" + className });
+    }
+    
     // Gửi lệnh lưu lên máy chủ chạy nền
     fetchGAS('saveAttendance', payload);
 });
@@ -361,25 +368,23 @@ document.getElementById('btn-generate-report').addEventListener('click', async (
         return;
     }
     
-    showLoader(`Đang tính toán học phí tháng ${month}...`);
-    const data = await fetchGAS('generateBilling', { month, className: classNameFilter });
-    hideLoader();
+    // TỐI ƯU SIÊU TỐC ĐỘ: Tính toán logic lập tức trên RAM
+    const bills = generateBillingOffline(month, classNameFilter);
 
-    if(data) {
-        document.getElementById('billing-panel').style.display = 'block';
-        document.getElementById('bill-month-label').innerText = month;
-        
-        const tbody = document.getElementById('billing-table-body');
-        
-        if(data.bills.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">Chưa có dữ liệu nào cho tháng này.</td></tr>';
-            document.getElementById('billing-grand-total').innerText = '0 ₫';
-            return;
-        }
+    document.getElementById('billing-panel').style.display = 'block';
+    document.getElementById('bill-month-label').innerText = month;
+    
+    const tbody = document.getElementById('billing-table-body');
+    
+    if(bills.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center">Chưa có dữ liệu nào cho tháng này.</td></tr>';
+        document.getElementById('billing-grand-total').innerText = '0 ₫';
+        return;
+    }
 
-        let grandTotal = 0;
-        tbody.innerHTML = data.bills.map(b => {
-            grandTotal += b.totalFee;
+    let grandTotal = 0;
+    tbody.innerHTML = bills.map(b => {
+        grandTotal += b.totalFee;
             return `
             <tr>
                 <td class="text-muted">${b.studentId}</td>
@@ -394,8 +399,49 @@ document.getElementById('btn-generate-report').addEventListener('click', async (
         }).join('');
         
         document.getElementById('billing-grand-total').innerText = new Intl.NumberFormat('vi-VN').format(grandTotal) + ' ₫';
-    }
 });
+
+// Hàm tính tiền học từ dữ liệu lưu trong bộ nhớ tạm (Cực Nhanh 0s)
+function generateBillingOffline(monthStr, classFilter) {
+    const classFeeMap = {};
+    AppState.classes.forEach(c => classFeeMap[c.ClassName] = c.Fee);
+    
+    const attRecordsInMonth = AppState.attendances.filter(a => String(a.date).startsWith(monthStr));
+    
+    const classTotalSessions = {};
+    attRecordsInMonth.forEach(rec => {
+        if(!classTotalSessions[rec.className]) classTotalSessions[rec.className] = 0;
+        classTotalSessions[rec.className]++;
+    });
+
+    const bills = [];
+    AppState.students.forEach(s => {
+        if(s.Status !== 'Đang học' && s.Status !== 'Bảo lưu') return;
+        if(classFilter && s.Class !== classFilter) return;
+        
+        const sClass = s.Class;
+        const totalClassSess = classTotalSessions[sClass] || 0;
+        if (totalClassSess === 0) return;
+        
+        let absentCount = 0;
+        attRecordsInMonth.forEach(rec => {
+            if(rec.className === sClass && Array.isArray(rec.absents) && rec.absents.includes(s.ID)) {
+                absentCount++;
+            }
+        });
+        
+        const attendedCount = totalClassSess - absentCount;
+        const feePerSess = classFeeMap[sClass] || 50000;
+        const totalFee = attendedCount * feePerSess;
+        
+        bills.push({
+            studentId: s.ID, studentName: s.Name, className: sClass, feePerSession: feePerSess,
+            totalClassSessions: totalClassSess, absentSessions: absentCount,
+            attendedSessions: attendedCount, totalFee: totalFee
+        });
+    });
+    return bills;
+}
 
 /* --- 7. MODULE SETTING LỚP HỌC --- */
 function renderClassSettings() {
