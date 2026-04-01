@@ -94,17 +94,25 @@ async function fetchGAS(action, payload = {}) {
             // text/plain prevents CORS preflight OPTIONS request
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
         });
-        const result = await response.json();
-        if(result.status === 'success') {
-            return result.data;
-        } else {
-            console.error('GAS Error:', result.message);
-            alert('Lỗi: ' + result.message);
+        
+        const rawText = await response.text(); // Lấy chữ thô trước để soi
+        try {
+            const result = JSON.parse(rawText);
+            if(result.status === 'success') {
+                return result.data;
+            } else {
+                console.error('GAS Error:', result.message);
+                alert('Lỗi: ' + result.message);
+                return null;
+            }
+        } catch(e) {
+            console.error('Raw HTML received:', rawText);
+            alert('Google Server đã chặn luồng API và trả về một mã HTML lạ. Nội dung:\n\n' + rawText.substring(0, 300) + '...');
             return null;
         }
     } catch(err) {
-        console.error('Fetch Error:', err);
-        alert('Hệ thống bị chặn kết nối tới dữ liệu máy chủ!\n\nLỗi chi tiết: ' + err.name + ' - ' + err.message + '\n\nNguyên nhân 99%: Do trình duyệt của bạn đang bật Tiện ích chặn quảng cáo (Adblock) hoặc dùng trình duyệt đặc biệt (Brave) hoặc Safari đang bật "Chống theo dõi trang web" nên nó chặn kho cờ sở dữ liệu gốc của Google.\n\nCách xử lý: \n=> HÃY TẮT CÁC PHẦN MỀM CHẶN QUẢNG CÁO CHO TRANG NÀY RỒI F5 LẠI!');
+        console.error('Fetch Network/CORS Error:', err);
+        alert('Trình duyệt đã chặn hẳn mạng (Lỗi Mạng/CORS)!\nChi tiết: ' + err.name + ' - ' + err.message);
         return null;
     }
 }
