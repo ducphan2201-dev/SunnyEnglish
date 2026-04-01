@@ -103,7 +103,7 @@ async function fetchGAS(action, payload = {}) {
         }
     } catch(err) {
         console.error('Fetch Error:', err);
-        alert('Không thể kết nối tới Google Sheets. Vui lòng kiểm tra mạng hoặc URL Web App.');
+        alert('Không thể kết nối tới máy chủ dữ liệu lúc này. Vui lòng kiểm tra mạng Internet.');
         return null;
     }
 }
@@ -121,7 +121,7 @@ async function loadInitialData() {
         // Update Dashboard
         document.getElementById('stat-total-students').innerText = AppState.students.length;
         document.getElementById('stat-total-classes').innerText = AppState.classes.length;
-        document.getElementById('system-status').innerHTML = '✅ Kết nối Google Sheets thành công. Hệ thống sẵn sàng!';
+        document.getElementById('system-status').innerHTML = '✅ Kết nối máy chủ thành công. Hệ thống sẵn sàng!';
         document.getElementById('system-status').className = 'alert badge-success mt-2';
         
         populateClassSelects();
