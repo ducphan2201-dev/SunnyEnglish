@@ -134,25 +134,56 @@ async function fetchGAS(action, payload = {}, retries = 3) {
 }
 
 /* --- 3. INIT DATA LOAD --- */
+function saveToCache() {
+    try {
+        localStorage.setItem('sunny_cache_data', JSON.stringify({
+            classes: AppState.classes,
+            students: AppState.students,
+            attendances: AppState.attendances
+        }));
+    } catch(e) {}
+}
+
+function updateDashboardUI() {
+    document.getElementById('stat-total-students').innerText = AppState.students.length;
+    document.getElementById('stat-total-classes').innerText = AppState.classes.length;
+    document.getElementById('system-status').innerHTML = '✅ Lấy dữ liệu thành công. Hệ thống sẵn sàng!';
+    document.getElementById('system-status').className = 'alert badge-success mt-2';
+    
+    populateClassSelects();
+    renderStudentTable();
+    renderClassSettings();
+}
+
 async function loadInitialData() {
-    showLoader('Đang tải dữ liệu Trung tâm...');
+    const cachedString = localStorage.getItem('sunny_cache_data');
+    if (cachedString) {
+        try {
+            const cachedData = JSON.parse(cachedString);
+            if (cachedData.classes && cachedData.students) {
+                AppState.classes = cachedData.classes;
+                AppState.students = cachedData.students;
+                AppState.attendances = cachedData.attendances || [];
+                updateDashboardUI(); // Zero-latency render
+            }
+        } catch(e) {}
+    } else {
+        showLoader('Đang tải dữ liệu Trung tâm...');
+    }
+
+    // Luồng ngầm fetch server
     const data = await fetchGAS('loadInitialData');
-    hideLoader();
+    if(!cachedString) hideLoader();
 
     if(data) {
         AppState.classes = data.classes || [];
         AppState.students = data.students || [];
-        AppState.attendances = data.attendances || []; // Load toàn bộ điểm danh lịch sử vào RAM
+        AppState.attendances = data.attendances || [];
         
-        // Update Dashboard
-        document.getElementById('stat-total-students').innerText = AppState.students.length;
-        document.getElementById('stat-total-classes').innerText = AppState.classes.length;
-        document.getElementById('system-status').innerHTML = '✅ Kết nối máy chủ thành công. Hệ thống sẵn sàng!';
-        document.getElementById('system-status').className = 'alert badge-success mt-2';
-        
-        populateClassSelects();
-        renderStudentTable();
-        renderClassSettings();
+        saveToCache();
+        updateDashboardUI(); // Cập nhật lại UI ngầm nếu có gì mới
+    } else {
+        if(!cachedString) hideLoader();
     }
 }
 
@@ -222,11 +253,18 @@ const StudentManager = {
         // Cập nhật giao diện TỨC THÌ (Optimistic UI) cho tốc độ SIÊU NHANH
         StudentManager.closeModal();
         const existIdx = AppState.students.findIndex(s => s.ID === student.ID);
-        if(existIdx > -1) {
-            AppState.students[existIdx] = student;
+        
+        if (student.Status === 'Nghỉ học') {
+            if (existIdx > -1) AppState.students.splice(existIdx, 1);
         } else {
-            AppState.students.push(student);
+            if(existIdx > -1) {
+                AppState.students[existIdx] = student;
+            } else {
+                AppState.students.push(student);
+            }
         }
+        
+        saveToCache();
         document.getElementById('stat-total-students').innerText = AppState.students.length;
         renderStudentTable();
         btn.disabled = false;
@@ -378,6 +416,8 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
         AppState.attendances.push({ date, className, absents, lates, IDKey: date + "_" + className });
     }
     
+    saveToCache();
+
     // Gửi lệnh lưu lên máy chủ chạy nền
     fetchGAS('saveAttendance', payload);
 });
@@ -493,6 +533,7 @@ document.getElementById('btn-add-class').addEventListener('click', () => {
         
         // Render UI lập tức
         AppState.classes.push({ ClassName: className, Fee: 50000 });
+        saveToCache();
         document.getElementById('stat-total-classes').innerText = AppState.classes.length;
         populateClassSelects();
         renderClassSettings();
@@ -507,7 +548,10 @@ window.updateClassFee = (className) => {
     
     // Tối ưu Tốc độ: Render UI tức thì
     const cls = AppState.classes.find(c => c.ClassName === className);
-    if(cls) cls.Fee = Number(feeInfo);
+    if(cls) {
+        cls.Fee = Number(feeInfo);
+        saveToCache();
+    }
     renderClassSettings();
     
     // Lưu chạy ngầm
