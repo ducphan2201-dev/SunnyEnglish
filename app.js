@@ -402,27 +402,33 @@ document.getElementById('btn-load-attendance').addEventListener('click', async (
         
     // Mặc định tất cả Có mặt nếu chưa có dữ liệu
     const studentsInClass = AppState.students.filter(s => s.Class === className && s.Status === 'Đang học');
-    const absents = attRecord ? attRecord.absents : []; 
-    const lates = attRecord ? attRecord.lates : [];
+    const absents = attRecord && typeof attRecord.absents === 'string' ? attRecord.absents : ""; 
+    const unexcused = attRecord && typeof attRecord.unexcusedAbsents === 'string' ? attRecord.unexcusedAbsents : ""; 
+    const lates = attRecord && typeof attRecord.lates === 'string' ? attRecord.lates : "";
         
     const tbody = document.getElementById('attendance-table-body');
     if(studentsInClass.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center">Không có học viên nào trong lớp này.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center">Không có học viên nào trong lớp này.</td></tr>';
             return;
         }
 
         tbody.innerHTML = studentsInClass.map((s, index) => {
-            const isAbsent = absents.includes(s.ID);
+            const isExcused = absents.includes(s.ID);
+            const isUnexcused = unexcused.includes(s.ID);
             const isLate = lates.includes(s.ID);
+            const isAnyAbsent = isExcused || isUnexcused;
             return `
             <tr data-id="${s.ID}">
                 <td>${index + 1}</td>
                 <td class="font-bold">${s.Name}</td>
                 <td class="text-center">
-                    <input type="checkbox" class="attend-toggle abs-cb" ${isAbsent ? 'checked' : ''} onchange="handleAbsentChange(this)"/>
+                    <input type="checkbox" class="attend-toggle abs-ex-cb" ${isExcused ? 'checked' : ''} onchange="handleAbsentChange(this, 'excused')"/>
                 </td>
                 <td class="text-center">
-                    <input type="checkbox" class="attend-toggle late-cb" ${isLate ? 'checked' : ''} ${isAbsent ? 'disabled' : ''} />
+                    <input type="checkbox" class="attend-toggle abs-un-cb" ${isUnexcused ? 'checked' : ''} onchange="handleAbsentChange(this, 'unexcused')"/>
+                </td>
+                <td class="text-center">
+                    <input type="checkbox" class="attend-toggle late-cb" ${isLate ? 'checked' : ''} ${isAnyAbsent ? 'disabled' : ''} />
                 </td>
                 <td><input type="text" class="form-control" placeholder="Ghi chú..."></td>
             </tr>
@@ -430,15 +436,24 @@ document.getElementById('btn-load-attendance').addEventListener('click', async (
         }).join('');
 });
 
-// Hàm xử lý nếu check Vắng mặt thì disabled check Đi muộn
-window.handleAbsentChange = (el) => {
+// Hàm xử lý mutually exclusive và Đi muộn
+window.handleAbsentChange = (el, type) => {
     const row = el.closest('tr');
+    const exCb = row.querySelector('.abs-ex-cb');
+    const unCb = row.querySelector('.abs-un-cb');
     const lateCb = row.querySelector('.late-cb');
+    
+    // Đảm bảo không tích 2 cái cùng lúc
     if (el.checked) {
+        if (type === 'excused') unCb.checked = false;
+        if (type === 'unexcused') exCb.checked = false;
+        
         lateCb.checked = false;
         lateCb.disabled = true;
     } else {
-        lateCb.disabled = false;
+        if (!exCb.checked && !unCb.checked) {
+            lateCb.disabled = false;
+        }
     }
 }
 
@@ -452,17 +467,26 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
     
     const rows = document.querySelectorAll('#attendance-table-body tr[data-id]');
     const absents = [];
+    const unexcusedAbsents = [];
     const lates = [];
     
     rows.forEach(tr => {
         const id = tr.getAttribute('data-id');
-        const isAbsent = tr.querySelector('.abs-cb').checked;
+        const isExcused = tr.querySelector('.abs-ex-cb').checked;
+        const isUnexcused = tr.querySelector('.abs-un-cb').checked;
         const isLate = tr.querySelector('.late-cb').checked;
-        if(isAbsent) absents.push(id);
+        
+        if(isExcused) absents.push(id);
+        if(isUnexcused) unexcusedAbsents.push(id);
         if(isLate) lates.push(id);
     });
 
-    const payload = { date, className, absents: absents.join(','), lates: lates.join(',') };
+    const payload = { 
+        date, className, 
+        absents: absents.join(','), 
+        unexcusedAbsents: unexcusedAbsents.join(','), 
+        lates: lates.join(',') 
+    };
     
     // Cập nhật giao diện đóng bảng TỨC THÌ
     document.getElementById('attendance-panel').style.display = 'none';
@@ -517,7 +541,8 @@ document.getElementById('btn-generate-report').addEventListener('click', async (
                 <td><span class="badge badge-warning">${b.className}</span></td>
                 <td class="text-center">${new Intl.NumberFormat('vi-VN').format(b.feePerSession)} đ</td>
                 <td class="text-center font-bold text-success">${b.attendedSessions}</td>
-                <td class="text-center text-danger">${b.absentSessions}</td>
+                <td class="text-center text-success">${b.absentSessions}</td>
+                <td class="text-center text-danger">${b.unexcusedSessions}</td>
                 <td class="text-right font-bold text-primary">${new Intl.NumberFormat('vi-VN').format(b.totalFee)} ₫</td>
             </tr>
             `;
@@ -536,16 +561,25 @@ function generateBillingOffline(monthStr, classFilter) {
     // Hash map đếm số buổi của Lớp, và số buổi Vắng của từng Học sinh
     const classTotalSessions = {};
     const studentAbsentCounts = {};
+    const studentUnexcusedCounts = {};
     
     attRecordsInMonth.forEach(rec => {
         if(!classTotalSessions[rec.className]) classTotalSessions[rec.className] = 0;
         classTotalSessions[rec.className]++;
         
-        // rec.absents lưu dạng chuỗi "ID1,ID2"
+        // rec.absents (Có phép) lưu dạng chuỗi "ID1,ID2"
         if(rec.absents && typeof rec.absents === 'string') {
             rec.absents.split(',').forEach(id => {
                 if(id) {
                     studentAbsentCounts[id] = (studentAbsentCounts[id] || 0) + 1;
+                }
+            });
+        }
+        // rec.unexcusedAbsents (Không phép)
+        if(rec.unexcusedAbsents && typeof rec.unexcusedAbsents === 'string') {
+            rec.unexcusedAbsents.split(',').forEach(id => {
+                if(id) {
+                    studentUnexcusedCounts[id] = (studentUnexcusedCounts[id] || 0) + 1;
                 }
             });
         }
@@ -561,14 +595,20 @@ function generateBillingOffline(monthStr, classFilter) {
         if (totalClassSess === 0) return;
         
         const absentCount = studentAbsentCounts[s.ID] || 0;
-        const attendedCount = totalClassSess - absentCount;
+        const unexcusedCount = studentUnexcusedCounts[s.ID] || 0;
+        
+        // Số buổi ĐI HỌC thực tế
+        const attendedCount = totalClassSess - absentCount - unexcusedCount;
+        
+        // Logic mới: Có phép = Trừ đi. Không phép = VẪN TÍNH TIỀN
+        const billableSessions = totalClassSess - absentCount;
+        
         const feePerSess = classFeeMap[sClass] || 50000;
-        // Logic tính toán: Nếu vắng (không học) thì không đóng tiền -> Chỉ tính các buổi có đi học
-        const totalFee = attendedCount * feePerSess;
+        const totalFee = billableSessions * feePerSess;
         
         bills.push({
             studentId: s.ID, studentName: s.Name, className: sClass, feePerSession: feePerSess,
-            totalClassSessions: totalClassSess, absentSessions: absentCount,
+            totalClassSessions: totalClassSess, absentSessions: absentCount, unexcusedSessions: unexcusedCount,
             attendedSessions: attendedCount, totalFee: totalFee
         });
     });

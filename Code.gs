@@ -36,7 +36,7 @@ function doPost(e) {
     } else if (action === "saveAttendance") {
       var idKey = data.date + "_" + data.className;
       result = updateSheetData("DiemDanh", "IDKey", idKey, [
-        idKey, data.date, data.className, data.absents || "", data.lates || ""
+        idKey, data.date, data.className, data.absents || "", data.lates || "", data.unexcusedAbsents || ""
       ]);
     } else {
       throw new Error("Action không tồn tại!");
@@ -109,7 +109,7 @@ function loadInitialDataCached() {
   var attSheet = ss.getSheetByName("DiemDanh");
   var attData = [];
   if (attSheet && attSheet.getLastRow() > 1) {
-    var attValues = attSheet.getRange(2, 1, attSheet.getLastRow() - 1, 5).getDisplayValues();
+    var attValues = attSheet.getRange(2, 1, attSheet.getLastRow() - 1, 6).getDisplayValues();
     
     // Tạo mốc quá khứ 90 ngày (3 tháng)
     var filterDate = new Date();
@@ -122,14 +122,13 @@ function loadInitialDataCached() {
        // Sàng lọc ngày (Lấy 90 ngày gần nhất)
        var recordDate = new Date(dateStr);
        if (recordDate >= filterDate || isNaN(recordDate.getTime())) {
-          var absentsArray = rowA[3] ? String(rowA[3]).split(",") : [];
-          var latesArray = rowA[4] ? String(rowA[4]).split(",") : [];
           attData.push({
              IDKey: String(rowA[0] || ""),
              date: dateStr,
              className: String(rowA[2] || ""),
-             absents: absentsArray,
-             lates: latesArray
+             absents: String(rowA[3] || ""),
+             lates: String(rowA[4] || ""),
+             unexcusedAbsents: String(rowA[5] || "")
           });
        }
     }
@@ -220,7 +219,7 @@ function updateSheetData(sheetName, idColumnName, idValue, rowDataArray) {
   
   if (sheet.getLastRow() === 0) {
     if (sheetName === "HocSinh") sheet.appendRow(["ID", "Name", "Class", "DOB", "EnrollDate", "Phone", "Eval", "Status"]);
-    if (sheetName === "DiemDanh") sheet.appendRow(["IDKey", "date", "className", "absents", "lates"]);
+    if (sheetName === "DiemDanh") sheet.appendRow(["IDKey", "date", "className", "absents", "lates", "unexcusedAbsents"]);
     if (sheetName === "CaiDatLop") sheet.appendRow(["ClassName", "Fee"]);
   }
   
