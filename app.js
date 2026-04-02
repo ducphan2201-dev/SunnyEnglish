@@ -364,7 +364,7 @@ document.getElementById('btn-load-attendance').addEventListener('click', async (
                 <td class="text-center">
                     <input type="checkbox" class="attend-toggle late-cb" ${isLate ? 'checked' : ''} ${isAbsent ? 'disabled' : ''} />
                 </td>
-                <td><input type="text" class="form-control" style="padding:0.25rem" placeholder="Ghi chú..."></td>
+                <td><input type="text" class="form-control" placeholder="Ghi chú..."></td>
             </tr>
             `;
         }).join('');
