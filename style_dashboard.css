@@ -302,9 +302,9 @@ body {
     font-size: 1.75rem;
     color: white;
 }
-.bg-blue { background-color: var(--secondary); }
-.bg-green { background-color: var(--success); }
-.bg-orange { background-color: var(--primary); }
+.bg-blue { background: linear-gradient(135deg, var(--secondary) 0%, #2563eb 100%); box-shadow: 0 4px 10px rgba(59,130,246,0.3); }
+.bg-green { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); box-shadow: 0 4px 10px rgba(16,185,129,0.3); }
+.bg-orange { background: linear-gradient(135deg, var(--primary) 0%, #ea580c 100%); box-shadow: 0 4px 10px rgba(245,158,11,0.3); }
 
 .stat-info h3 {
     font-size: 0.875rem;
@@ -328,11 +328,13 @@ body {
     background-color: var(--card-bg);
     padding: 1.5rem;
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    border: 2px solid transparent;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    border: 1px solid rgba(255,255,255,0.8);
     cursor: pointer;
     text-align: center;
-    transition: var(--transition);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    overflow: hidden;
 }
 .action-card:hover {
     transform: translateY(-5px);
