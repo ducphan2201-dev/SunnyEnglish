@@ -230,13 +230,11 @@ function updateSheetData(sheetName, idColumnName, idValue, rowDataArray) {
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
        if (String(data[i][0]) === String(idValue)) {
-          data[i] = rowDataArray;
+          // Chỉ update 1 dòng đang hướng tới thay vì ghi đè lên toàn bộ Sheet tránh lỗi Shape mismatch
+          sheet.getRange(i + 1, 1, 1, rowDataArray.length).setValues([rowDataArray]);
           isUpdated = true; 
           break;
        }
-    }
-    if (isUpdated) {
-        sheet.getRange(1, 1, data.length, data[0].length).setValues(data);
     }
   }
   

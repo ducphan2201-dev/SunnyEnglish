@@ -119,7 +119,7 @@ async function fetchGAS(action, payload = {}, retries = 3) {
                 return result.data;
             } else {
                 console.error('GAS Error:', result.message);
-                if(retries === 0) alert('Lỗi: ' + result.message);
+                alert('Lỗi từ Server: ' + result.message);
                 return null;
             }
         } catch(e) {
@@ -495,10 +495,15 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
     
     // Lưu vào RAM ngay lập tức
     const existIdx = AppState.attendances.findIndex(a => a.date === date && a.className === className);
+    const newRecord = { 
+        ...payload, 
+        IDKey: date + "_" + className 
+    };
+    
     if(existIdx > -1) {
-        AppState.attendances[existIdx] = { date, className, absents, lates, IDKey: date + "_" + className };
+        AppState.attendances[existIdx] = newRecord;
     } else {
-        AppState.attendances.push({ date, className, absents, lates, IDKey: date + "_" + className });
+        AppState.attendances.push(newRecord);
     }
     
     saveToCache();
