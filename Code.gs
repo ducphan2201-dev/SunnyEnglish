@@ -27,6 +27,8 @@ function doPost(e) {
     } else if (action === "saveStudent") {
       // Dùng hàm chuyên biệt cho Học sinh để xử lý Archive
       result = processSaveStudent(data);
+    } else if (action === "deleteStudent") {
+      result = processDeleteStudent(data.ID);
     } else if (action === "saveClass") {
       result = updateSheetData("CaiDatLop", "ClassName", data.ClassName, [
         data.ClassName, Number(data.Fee) || 0
@@ -243,4 +245,32 @@ function updateSheetData(sheetName, idColumnName, idValue, rowDataArray) {
   
   CacheService.getScriptCache().remove(CACHE_KEY);
   return { success: true };
+}
+
+// Hàm Xóa Vĩnh Viễn Học sinh
+function processDeleteStudent(id) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName('HocSinh');
+  var archiveSheet = ss.getSheetByName('HocSinh_Archive');
+
+  if (sheet) {
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] == id) {
+        sheet.deleteRow(i + 1);
+        break;
+      }
+    }
+  }
+  if (archiveSheet) {
+    var dataArc = archiveSheet.getDataRange().getValues();
+    for (var j = 1; j < dataArc.length; j++) {
+      if (dataArc[j][0] == id) {
+        archiveSheet.deleteRow(j + 1);
+        break;
+      }
+    }
+  }
+  CacheService.getScriptCache().remove('sunny_cache_data_v2');
+  return { status: 'success', message: 'Đã xóa học sinh ' + id };
 }

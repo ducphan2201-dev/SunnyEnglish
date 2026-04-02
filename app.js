@@ -55,7 +55,24 @@ function initTheme() {
     });
 }
 
+window.showToast = (msg, type = 'success') => {
+    const container = document.getElementById('toast-container');
+    if(!container) return;
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.innerHTML = `<i class="fa-solid ${type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle'}"></i> ` + msg;
+    container.appendChild(t);
+    setTimeout(() => { t.style.animation = 'fadeOutToast 0.3s ease forwards'; setTimeout(() => t.remove(), 300); }, 3000);
+};
+
 function setupNavigation() {
+    // Lưu trạng thái Lớp học và Tháng Báo cáo
+    document.getElementById('attendance-class').addEventListener('change', (e) => {
+        localStorage.setItem('sunny_last_class', e.target.value);
+    });
+    document.getElementById('billing-month').addEventListener('change', (e) => {
+        localStorage.setItem('sunny_last_billing_month', e.target.value);
+    });
     const navItems = document.querySelectorAll('.nav-item');
     const sections = document.querySelectorAll('.view-section');
 
@@ -202,6 +219,18 @@ function populateClassSelects() {
     
     // Billing Filter
     document.getElementById('billing-class').innerHTML = '<option value="">Tất cả các lớp</option>' + classOptions;
+
+    // --- AUTO FILL LOGIC ---
+    const lastClass = localStorage.getItem('sunny_last_class');
+    if (lastClass && AppState.classes.some(c => c.ClassName === lastClass)) {
+        document.getElementById('attendance-class').value = lastClass;
+        document.getElementById('billing-class').value = lastClass;
+    }
+    
+    const lastMonth = localStorage.getItem('sunny_last_billing_month');
+    if (lastMonth) {
+        document.getElementById('billing-month').value = lastMonth;
+    }
 }
 
 /* --- 4. MODULE QUẢN LÝ HỌC SINH --- */
@@ -301,7 +330,11 @@ function renderStudentTable() {
             <td>${s.Phone || '-'}</td>
             <td><span class="badge ${s.Status === 'Đang học' ? 'badge-success' : 'badge-danger'}">${s.Status}</span></td>
             <td>
-                <button class="icon-btn text-secondary" title="Sửa" onclick="editStudent('${s.ID}')"><i class="fa-solid fa-pen"></i></button>
+                <div class="flex" style="gap: 8px;">
+                    <button class="icon-btn text-secondary" title="Sửa" onclick="editStudent('${s.ID}')"><i class="fa-solid fa-pen"></i></button>
+                    <button class="icon-btn text-secondary" title="Đổi trạng thái" onclick="toggleStudentStatus('${s.ID}')"><i class="fa-solid fa-box-archive"></i></button>
+                    <button class="icon-btn text-danger" title="Xóa" onclick="deleteStudent('${s.ID}')"><i class="fa-solid fa-trash"></i></button>
+                </div>
             </td>
         </tr>
     `).join('');
@@ -324,13 +357,40 @@ window.editStudent = (id) => {
     }
 }
 
+window.toggleStudentStatus = (id) => {
+    const s = AppState.students.find(x => x.ID === id);
+    if (!s) return;
+    s.Status = (s.Status === 'Đang học') ? 'Nghỉ học' : 'Đang học';
+    
+    // Lưu tạm vào cache & cập nhật render
+    saveToCache();
+    renderStudentTable();
+    showToast(`Đã chuyển trạng thái: ${s.Status}`, 'success');
+    
+    // Gọi API nền
+    fetchGAS('saveStudent', s);
+};
+
+window.deleteStudent = (id) => {
+    if(!confirm('Cảnh báo: Bạn có THỰC SỰ muốn xoá vĩnh viễn dữ liệu học sinh này kể cả trong Kho Lưu Trữ?')) return;
+    
+    const existIdx = AppState.students.findIndex(x => x.ID === id);
+    if (existIdx > -1) AppState.students.splice(existIdx, 1);
+    
+    saveToCache();
+    renderStudentTable();
+    showToast('Đã xóa dữ liệu học sinh!', 'success');
+    
+    fetchGAS('deleteStudent', { ID: id });
+};
+
 /* --- 5. MODULE ĐIỂM DANH --- */
 document.getElementById('btn-load-attendance').addEventListener('click', async () => {
     const date = document.getElementById('attendance-date').value;
     const className = document.getElementById('attendance-class').value;
     
     if(!date || !className) {
-        alert('Vui lòng chọn Ngày và Lớp để điểm danh!');
+        showToast('Vui lòng chọn Ngày và Lớp để điểm danh!', 'error');
         return;
     }
     
@@ -407,6 +467,7 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
     // Cập nhật giao diện đóng bảng TỨC THÌ
     document.getElementById('attendance-panel').style.display = 'none';
     document.getElementById('stat-attendance-today').innerText = 'Đã lưu (Ngầm)';
+    showToast('Đã lưu dữ liệu Điểm danh dưới nền!', 'success');
     
     // Lưu vào RAM ngay lập tức
     const existIdx = AppState.attendances.findIndex(a => a.date === date && a.className === className);
@@ -428,7 +489,7 @@ document.getElementById('btn-generate-report').addEventListener('click', async (
     const classNameFilter = document.getElementById('billing-class').value;
     
     if(!month) {
-        alert('Vui lòng chọn Tháng tổng kết!');
+        showToast('Vui lòng chọn Tháng tổng kết!', 'error');
         return;
     }
     
@@ -472,10 +533,22 @@ function generateBillingOffline(monthStr, classFilter) {
     
     const attRecordsInMonth = AppState.attendances.filter(a => String(a.date).startsWith(monthStr));
     
+    // Hash map đếm số buổi của Lớp, và số buổi Vắng của từng Học sinh
     const classTotalSessions = {};
+    const studentAbsentCounts = {};
+    
     attRecordsInMonth.forEach(rec => {
         if(!classTotalSessions[rec.className]) classTotalSessions[rec.className] = 0;
         classTotalSessions[rec.className]++;
+        
+        // rec.absents lưu dạng chuỗi "ID1,ID2"
+        if(rec.absents && typeof rec.absents === 'string') {
+            rec.absents.split(',').forEach(id => {
+                if(id) {
+                    studentAbsentCounts[id] = (studentAbsentCounts[id] || 0) + 1;
+                }
+            });
+        }
     });
 
     const bills = [];
@@ -487,15 +560,10 @@ function generateBillingOffline(monthStr, classFilter) {
         const totalClassSess = classTotalSessions[sClass] || 0;
         if (totalClassSess === 0) return;
         
-        let absentCount = 0;
-        attRecordsInMonth.forEach(rec => {
-            if(rec.className === sClass && Array.isArray(rec.absents) && rec.absents.includes(s.ID)) {
-                absentCount++;
-            }
-        });
-        
+        const absentCount = studentAbsentCounts[s.ID] || 0;
         const attendedCount = totalClassSess - absentCount;
         const feePerSess = classFeeMap[sClass] || 50000;
+        // Logic tính toán: Nếu vắng (không học) thì không đóng tiền -> Chỉ tính các buổi có đi học
         const totalFee = attendedCount * feePerSess;
         
         bills.push({

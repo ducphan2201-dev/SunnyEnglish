@@ -317,3 +317,11 @@ body {
 @keyframes spin { to { transform: rotate(360deg); } }
 .attend-toggle { width: 28px; height: 28px; cursor: pointer; accent-color: var(--primary); }
 @media print { .sidebar, .topbar, .btn, .search-bar, .modal-overlay, .actions { display: none !important; } .main-content { margin: 0; padding: 0; } .card { box-shadow: none; border: none; } .view-container { padding: 0; } }
+
+/* TOAST NOTIFICATION */
+#toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.toast { background: var(--card-bg); backdrop-filter: blur(10px); color: var(--text-main); padding: 1rem 1.5rem; border-radius: 8px; box-shadow: var(--shadow); border-left: 4px solid var(--primary); font-weight: 500; animation: slideInToast 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55); max-width: 350px; pointer-events: auto; }
+.toast.success { border-left-color: var(--success); }
+.toast.error { border-left-color: var(--danger); }
+@keyframes slideInToast { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes fadeOutToast { to { opacity: 0; transform: translateY(10px); } }
