@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SunnyEnglish - Hệ thống Quản lý</title>
+    <meta name="description" content="Hệ thống quản lý điểm danh và học phí cho trung tâm SunnyEnglish.">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style_v3.css">
@@ -33,19 +34,19 @@
                 </div>
             </div>
             <nav class="sidebar-nav">
-                <a href="#" class="nav-item active" data-view="dashboard">
+                <a href="#" id="nav-dashboard" class="nav-item active" data-view="dashboard">
                     <i class="fa-solid fa-house"></i> Trang Chủ
                 </a>
-                <a href="#" class="nav-item" data-view="attendance">
+                <a href="#" id="nav-attendance" class="nav-item" data-view="attendance">
                     <i class="fa-solid fa-calendar-check"></i> Điểm danh hôm nay
                 </a>
-                <a href="#" class="nav-item" data-view="students">
+                <a href="#" id="nav-students" class="nav-item" data-view="students">
                     <i class="fa-solid fa-users"></i> Danh sách Học sinh
                 </a>
-                <a href="#" class="nav-item" data-view="billing">
+                <a href="#" id="nav-billing" class="nav-item" data-view="billing">
                     <i class="fa-solid fa-calculator"></i> Tính Tiền Học
                 </a>
-                <a href="#" class="nav-item" data-view="settings">
+                <a href="#" id="nav-settings" class="nav-item" data-view="settings">
                     <i class="fa-solid fa-gear"></i> Cài đặt Phụ
                 </a>
             </nav>
@@ -65,13 +66,13 @@
             <header class="topbar">
                 <div class="search-bar">
                     <i class="fa-solid fa-magnifying-glass"></i>
-                    <input type="text" placeholder="Tìm kiếm nhanh học sinh...">
+                    <input type="text" id="global-search" placeholder="Tìm kiếm nhanh học sinh...">
                 </div>
                 <div class="actions">
                     <button class="icon-btn tooltip" title="Chế độ Darkmode" id="theme-toggle">
                         <i class="fa-solid fa-moon"></i>
                     </button>
-                    <button class="icon-btn tooltip" onclick="localStorage.removeItem('GAS_URL'); location.reload();" title="Đổi API Data">
+                    <button class="icon-btn tooltip" id="btn-reset-api" onclick="localStorage.removeItem('GAS_URL'); location.reload();" title="Đổi API Data">
                         <i class="fa-solid fa-database"></i>
                     </button>
                 </div>
@@ -86,17 +87,17 @@
                     </div>
 
                     <div class="quick-actions-grid mb-4">
-                        <div class="action-card" onclick="document.querySelector('[data-view=attendance]').click()">
+                        <div class="action-card" id="card-nav-attendance" onclick="document.querySelector('[data-view=attendance]').click()">
                             <div class="icon bg-orange"><i class="fa-solid fa-calendar-check"></i></div>
                             <h3>1. Nhập Điểm Danh</h3>
                             <p>Tích xem cháu nào nghỉ học</p>
                         </div>
-                        <div class="action-card" onclick="document.querySelector('[data-view=students]').click(); setTimeout(StudentManager.openModal, 100);">
+                        <div class="action-card" id="card-nav-students" onclick="document.querySelector('[data-view=students]').click(); setTimeout(StudentManager.openModal, 100);">
                             <div class="icon bg-blue"><i class="fa-solid fa-user-plus"></i></div>
                             <h3>2. Thêm Học Sinh</h3>
                             <p>Ghi danh trẻ mới / Lớp mới</p>
                         </div>
-                        <div class="action-card" onclick="document.querySelector('[data-view=billing]').click()">
+                        <div class="action-card" id="card-nav-billing" onclick="document.querySelector('[data-view=billing]').click()">
                             <div class="icon bg-green"><i class="fa-solid fa-file-invoice-dollar"></i></div>
                             <h3>3. Tính Tiền Học Phí</h3>
                             <p>Chốt danh sách thu tiền nhanh</p>
@@ -132,7 +133,7 @@
                 <!-- VIEW: NHÂN SỰ / HỌC SINH -->
                 <section id="view-students" class="view-section">
                     <div class="d-flex justify-between align-center mb-4">
-                        <h1 class="page-title mb-0">Danh sách Học sinh</h1>
+                        <h2 class="page-title mb-0">Danh sách Học sinh</h2>
                         <button class="btn btn-primary" onclick="StudentManager.openModal()"><i class="fa-solid fa-plus"></i> Thêm Học sinh</button>
                     </div>
                     
@@ -146,12 +147,13 @@
                             <table class="data-table">
                                 <thead>
                                     <tr>
-                                        <th>ID</th>
+                                        <th style="display:none;">ID</th>
                                         <th>Họ và Tên</th>
                                         <th>Lớp</th>
                                         <th>Ngày sinh</th>
                                         <th>Liên hệ Phụ huynh</th>
                                         <th>Trạng thái</th>
+                                        <th>Đánh giá học lực</th>
                                         <th>Hành động</th>
                                     </tr>
                                 </thead>
@@ -166,7 +168,7 @@
 
                 <!-- VIEW: ĐIỂM DANH -->
                 <section id="view-attendance" class="view-section">
-                    <h1 class="page-title">Điểm danh Lớp học</h1>
+                    <h2 class="page-title">Điểm danh Lớp học</h2>
                     <div class="card p-4 form-grid align-end">
                         <div class="form-group">
                             <label>Chọn Ngày Điểm Danh</label>
@@ -214,7 +216,7 @@
 
                 <!-- VIEW: HỌC PHÍ -->
                 <section id="view-billing" class="view-section">
-                    <h1 class="page-title">Tổng kết & Báo cáo Học phí</h1>
+                    <h2 class="page-title">Tổng kết & Báo cáo Học phí</h2>
                     <div class="card p-4 form-grid align-end mb-4">
                         <div class="form-group">
                             <label>Chọn Tháng</label>
@@ -243,11 +245,12 @@
                                         <th>ID</th>
                                         <th>Tên Học sinh</th>
                                         <th>Lớp</th>
-                                        <th class="text-center">Đơn giá/Buổi</th>
                                         <th class="text-center">Số buổi học</th>
                                         <th class="text-center">Số buổi vắng<br><small>(Có phép)</small></th>
-                                        <th class="text-center">Số buổi vắng<br><small>(Ko phép)</small></th>
-                                        <th class="text-right">Tổng Tiền (VNĐ)</th>
+                                        <th class="text-center">Học phí tháng này</th>
+                                        <th class="text-center text-danger font-bold">Nợ học phí cũ</th>
+                                        <th class="text-right">Tổng phải thu (VNĐ)</th>
+                                        <th class="text-center no-print">Thanh toán</th>
                                     </tr>
                                 </thead>
                                 <tbody id="billing-table-body">
@@ -255,8 +258,9 @@
                                 </tbody>
                                 <tfoot>
                                     <tr class="font-bold bg-light">
-                                        <td colspan="7" class="text-right py-3">TỔNG CỘNG TIỀN HỌC DỰ THU:</td>
+                                        <td colspan="7" class="text-right py-3">TỔNG CỘNG TIỀN DỰ THU:</td>
                                         <td id="billing-grand-total" class="text-right text-primary py-3">0 ₫</td>
+                                        <td class="no-print"></td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -266,7 +270,7 @@
                 
                 <!-- VIEW: SETTINGS -->
                 <section id="view-settings" class="view-section">
-                    <h1 class="page-title">Cài đặt Mức Học phí Lớp học</h1>
+                    <h2 class="page-title">Cài đặt Mức Học phí Lớp học</h2>
                     <div class="card">
                         <p class="mb-4 text-muted">Nhập mức học phí tiêu chuẩn cho từng lớp. Mặc định là 50.000đ/buổi nếu bạn để trống. Các thông tin này sẽ được lưu ở sheet <b>CaiDatLop</b>.</p>
                         <div class="table-responsive">
@@ -360,7 +364,7 @@
     <div id="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="config.js"></script>
-    <script src="app.js"></script>
+    <script src="config.js?v=2"></script>
+    <script src="app.js?v=2"></script>
 </body>
 </html>

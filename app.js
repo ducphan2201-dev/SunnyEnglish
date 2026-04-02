@@ -8,6 +8,7 @@ const AppState = {
     classes: [],
     students: [],
     attendances: [],
+    payments: [],
     theme: localStorage.getItem('theme') || 'light'
 };
 
@@ -24,6 +25,17 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('setupModal').classList.remove('show');
         loadInitialData();
     }
+    
+    // Tìm kiếm nhanh (Global Search)
+    document.getElementById('global-search').addEventListener('input', (e) => {
+        if (e.target.value.trim() !== '') {
+            const currentActive = document.querySelector('.nav-item.active');
+            if(currentActive && currentActive.id !== 'nav-students') {
+                document.getElementById('nav-students').click();
+            }
+        }
+        renderStudentTable();
+    });
 
     // Save API URL Event
     document.getElementById('btn-save-api').addEventListener('click', () => {
@@ -156,7 +168,8 @@ function saveToCache() {
         localStorage.setItem('sunny_cache_data', JSON.stringify({
             classes: AppState.classes,
             students: AppState.students,
-            attendances: AppState.attendances
+            attendances: AppState.attendances,
+            payments: AppState.payments
         }));
     } catch(e) {}
 }
@@ -181,6 +194,7 @@ async function loadInitialData() {
                 AppState.classes = cachedData.classes;
                 AppState.students = cachedData.students;
                 AppState.attendances = cachedData.attendances || [];
+                AppState.payments = cachedData.payments || [];
                 updateDashboardUI(); // Zero-latency render
             }
         } catch(e) {}
@@ -196,6 +210,7 @@ async function loadInitialData() {
         AppState.classes = data.classes || [];
         AppState.students = data.students || [];
         AppState.attendances = data.attendances || [];
+        AppState.payments = data.payments || [];
         
         saveToCache();
         updateDashboardUI(); // Cập nhật lại UI ngầm nếu có gì mới
@@ -309,11 +324,19 @@ document.getElementById('filter-class').addEventListener('change', renderStudent
 
 function renderStudentTable() {
     const filterClass = document.getElementById('filter-class').value;
+    const searchKeyword = document.getElementById('global-search').value.toLowerCase().trim();
     const body = document.getElementById('student-table-body');
     
     let filtered = AppState.students;
     if(filterClass) {
         filtered = filtered.filter(s => s.Class === filterClass);
+    }
+    if (searchKeyword) {
+        filtered = filtered.filter(s => 
+            String(s.Name).toLowerCase().includes(searchKeyword) || 
+            String(s.ID).toLowerCase().includes(searchKeyword) || 
+            (s.Phone && String(s.Phone).includes(searchKeyword))
+        );
     }
     
     if(filtered.length === 0) {
@@ -323,12 +346,13 @@ function renderStudentTable() {
 
     body.innerHTML = filtered.map(s => `
         <tr>
-            <td class="font-bold text-primary">${s.ID}</td>
+            <td style="display: none;">${s.ID}</td>
             <td class="font-bold">${s.Name}</td>
             <td><span class="badge badge-warning">${s.Class}</span></td>
             <td>${s.DOB || '-'}</td>
             <td>${s.Phone || '-'}</td>
             <td><span class="badge ${s.Status === 'Đang học' ? 'badge-success' : 'badge-danger'}">${s.Status}</span></td>
+            <td style="max-width: 300px; white-space: pre-wrap; word-break: break-word; line-height: 1.5;">${s.Eval || '-'}</td>
             <td>
                 <div class="flex" style="gap: 8px;">
                     <button class="icon-btn text-secondary" title="Sửa" onclick="editStudent('${s.ID}')"><i class="fa-solid fa-pen"></i></button>
@@ -413,9 +437,10 @@ document.getElementById('btn-load-attendance').addEventListener('click', async (
         }
 
         tbody.innerHTML = studentsInClass.map((s, index) => {
-            const isExcused = absents.includes(s.ID);
-            const isUnexcused = unexcused.includes(s.ID);
-            const isLate = lates.includes(s.ID);
+            const checkId = (str, id) => str.split(',').some(v => v.includes(`[${id}]`) || v.trim() === id);
+            const isExcused = checkId(absents, s.ID);
+            const isUnexcused = checkId(unexcused, s.ID);
+            const isLate = checkId(lates, s.ID);
             const isAnyAbsent = isExcused || isUnexcused;
             return `
             <tr data-id="${s.ID}">
@@ -472,13 +497,16 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
     
     rows.forEach(tr => {
         const id = tr.getAttribute('data-id');
+        const s = AppState.students.find(x => x.ID === id);
+        const nameStr = s ? `${s.Name} [${id}]` : id;
+
         const isExcused = tr.querySelector('.abs-ex-cb').checked;
         const isUnexcused = tr.querySelector('.abs-un-cb').checked;
         const isLate = tr.querySelector('.late-cb').checked;
         
-        if(isExcused) absents.push(id);
-        if(isUnexcused) unexcusedAbsents.push(id);
-        if(isLate) lates.push(id);
+        if(isExcused) absents.push(nameStr);
+        if(isUnexcused) unexcusedAbsents.push(nameStr);
+        if(isLate) lates.push(nameStr);
     });
 
     const payload = { 
@@ -490,7 +518,6 @@ document.getElementById('btn-save-attendance').addEventListener('click', async (
     
     // Cập nhật giao diện đóng bảng TỨC THÌ
     document.getElementById('attendance-panel').style.display = 'none';
-    document.getElementById('stat-attendance-today').innerText = 'Đã lưu (Ngầm)';
     showToast('Đã lưu dữ liệu Điểm danh dưới nền!', 'success');
     
     // Lưu vào RAM ngay lập tức
@@ -539,16 +566,23 @@ document.getElementById('btn-generate-report').addEventListener('click', async (
     let grandTotal = 0;
     tbody.innerHTML = bills.map(b => {
         grandTotal += b.totalFee;
+        const btnClass = b.isPaid ? 'btn-success' : 'btn-danger';
+        const txtStatus = b.isPaid ? '<i class="fa-solid fa-check"></i> Đã đóng' : 'Chưa đóng';
             return `
             <tr>
                 <td class="text-muted">${b.studentId}</td>
                 <td class="font-bold">${b.studentName}</td>
                 <td><span class="badge badge-warning">${b.className}</span></td>
-                <td class="text-center">${new Intl.NumberFormat('vi-VN').format(b.feePerSession)} đ</td>
-                <td class="text-center font-bold text-success">${b.attendedSessions}</td>
+                <td class="text-center font-bold text-success">${b.totalClassSessions}</td>
                 <td class="text-center text-success">${b.absentSessions}</td>
-                <td class="text-center text-danger">${b.unexcusedSessions}</td>
-                <td class="text-right font-bold text-primary">${new Intl.NumberFormat('vi-VN').format(b.totalFee)} ₫</td>
+                <td class="text-center text-dark">${new Intl.NumberFormat('vi-VN').format(b.currentMonthFee)} đ</td>
+                <td class="text-center font-bold text-danger">${b.previousDebt > 0 ? '+' + new Intl.NumberFormat('vi-VN').format(b.previousDebt) : '0'} đ</td>
+                <td class="text-right font-bold text-primary" style="font-size:1.1rem">${new Intl.NumberFormat('vi-VN').format(b.totalFee)} ₫</td>
+                <td class="text-center no-print">
+                    <button class="btn ${btnClass}" style="padding: 0.4rem 0.8rem; font-size:0.85rem;" onclick="togglePayment('${b.monthStr}', '${b.studentId}', '${b.isPaid}')">
+                       ${txtStatus}
+                    </button>
+                </td>
             </tr>
             `;
         }).join('');
@@ -557,37 +591,44 @@ document.getElementById('btn-generate-report').addEventListener('click', async (
 });
 
 // Hàm tính tiền học từ dữ liệu lưu trong bộ nhớ tạm (Cực Nhanh 0s)
+// Hàm tính tiền học của 1 tháng bất kỳ (Phục vụ truy vết Nợ cũ)
+function getStudentBillForMonth(monthTarget, student, classFeeMap, classAllDatesMap) {
+    const sId = student.ID;
+    const sClass = student.Class;
+    const feePerSess = classFeeMap[sClass] || 50000;
+    
+    const datesInMonth = (classAllDatesMap[sClass] || []).filter(d => d.startsWith(monthTarget));
+    if (datesInMonth.length === 0) return 0;
+    
+    let billableSessions = 0;
+    const sEnrollDate = student.EnrollDate ? new Date(student.EnrollDate) : new Date(0);
+    
+    datesInMonth.forEach(dateStr => {
+        if (new Date(dateStr) < sEnrollDate) return;
+        
+        const rec = AppState.attendances.find(a => a.date === dateStr && a.className === sClass);
+        if(!rec) return;
+
+        let isExcused = false;
+        if(rec.absents && typeof rec.absents === 'string') {
+            if(rec.absents.split(',').some(val => val.includes(`[${sId}]`) || val.trim() === sId)) isExcused = true;
+        }
+        
+        if (!isExcused) billableSessions++;
+    });
+
+    return billableSessions * feePerSess;
+}
+
+// Hàm phân tích Dữ liệu Học phí chính (Siêu Tốc)
 function generateBillingOffline(monthStr, classFilter) {
     const classFeeMap = {};
     AppState.classes.forEach(c => classFeeMap[c.ClassName] = c.Fee);
     
-    const attRecordsInMonth = AppState.attendances.filter(a => String(a.date).startsWith(monthStr));
-    
-    // Hash map đếm số buổi của Lớp, và số buổi Vắng của từng Học sinh
-    const classTotalSessions = {};
-    const studentAbsentCounts = {};
-    const studentUnexcusedCounts = {};
-    
-    attRecordsInMonth.forEach(rec => {
-        if(!classTotalSessions[rec.className]) classTotalSessions[rec.className] = 0;
-        classTotalSessions[rec.className]++;
-        
-        // rec.absents (Có phép) lưu dạng chuỗi "ID1,ID2"
-        if(rec.absents && typeof rec.absents === 'string') {
-            rec.absents.split(',').forEach(id => {
-                if(id) {
-                    studentAbsentCounts[id] = (studentAbsentCounts[id] || 0) + 1;
-                }
-            });
-        }
-        // rec.unexcusedAbsents (Không phép)
-        if(rec.unexcusedAbsents && typeof rec.unexcusedAbsents === 'string') {
-            rec.unexcusedAbsents.split(',').forEach(id => {
-                if(id) {
-                    studentUnexcusedCounts[id] = (studentUnexcusedCounts[id] || 0) + 1;
-                }
-            });
-        }
+    const classAllDatesMap = {};
+    AppState.attendances.forEach(a => {
+        if(!classAllDatesMap[a.className]) classAllDatesMap[a.className] = [];
+        if(!classAllDatesMap[a.className].includes(a.date)) classAllDatesMap[a.className].push(a.date);
     });
 
     const bills = [];
@@ -596,29 +637,73 @@ function generateBillingOffline(monthStr, classFilter) {
         if(classFilter && s.Class !== classFilter) return;
         
         const sClass = s.Class;
-        const totalClassSess = classTotalSessions[sClass] || 0;
-        if (totalClassSess === 0) return;
         
-        const absentCount = studentAbsentCounts[s.ID] || 0;
-        const unexcusedCount = studentUnexcusedCounts[s.ID] || 0;
+        // 1. Phí Tháng Query
+        const datesInMonth = (classAllDatesMap[sClass] || []).filter(d => d.startsWith(monthStr));
+        const sEnrollDate = s.EnrollDate ? new Date(s.EnrollDate) : new Date(0);
+        let validSessionsInMonth = datesInMonth.filter(d => new Date(d) >= sEnrollDate).length;
         
-        // Số buổi ĐI HỌC thực tế
-        const attendedCount = totalClassSess - absentCount - unexcusedCount;
+        let absentCount = 0;
+        if (validSessionsInMonth > 0) {
+            datesInMonth.forEach(dateStr => {
+                if (new Date(dateStr) < sEnrollDate) return;
+                const rec = AppState.attendances.find(a => a.date === dateStr && a.className === sClass);
+                if(rec && rec.absents && typeof rec.absents === 'string') {
+                    if (rec.absents.split(',').some(v => v.includes(`[${s.ID}]`) || v.trim() === s.ID)) absentCount++;
+                }
+            });
+        }
+        const currentMonthFee = (validSessionsInMonth - absentCount) * (classFeeMap[sClass] || 50000);
         
-        // Logic mới: Có phép = Trừ đi. Không phép = VẪN TÍNH TIỀN
-        const billableSessions = totalClassSess - absentCount;
+        // 2. Tính Tồn Đọng (Nợ cũ)
+        let previousDebt = 0;
+        const pastMonthsToScan = [...new Set((classAllDatesMap[sClass] || []).map(d => d.substring(0, 7)))].filter(m => m < monthStr);
         
-        const feePerSess = classFeeMap[sClass] || 50000;
-        const totalFee = billableSessions * feePerSess;
+        pastMonthsToScan.forEach(mCheck => {
+            const pastFee = getStudentBillForMonth(mCheck, s, classFeeMap, classAllDatesMap);
+            if (pastFee > 0) {
+                const isPaid = AppState.payments.some(p => p.month === mCheck && p.studentId === s.ID && p.status === 'Đã đóng');
+                if (!isPaid) previousDebt += pastFee;
+            }
+        });
         
+        // 3. Status
+        const isCurrentPaid = AppState.payments.some(p => p.month === monthStr && p.studentId === s.ID && p.status === 'Đã đóng');
+
+        if (validSessionsInMonth === 0 && previousDebt === 0) return;
+
         bills.push({
-            studentId: s.ID, studentName: s.Name, className: sClass, feePerSession: feePerSess,
-            totalClassSessions: totalClassSess, absentSessions: absentCount, unexcusedSessions: unexcusedCount,
-            attendedSessions: attendedCount, totalFee: totalFee
+            studentId: s.ID, studentName: s.Name, className: sClass,
+            totalClassSessions: validSessionsInMonth, absentSessions: absentCount,
+            currentMonthFee: currentMonthFee, previousDebt: previousDebt, totalFee: currentMonthFee + previousDebt,
+            isPaid: isCurrentPaid, monthStr: monthStr
         });
     });
     return bills;
 }
+
+window.togglePayment = (month, studentId, targetStr) => {
+    // Pass Boolean value back to logic
+    const isCurrentlyPaid = (targetStr === 'true');
+    const newStatus = !isCurrentlyPaid;
+    const txtStatus = newStatus ? 'Đã đóng' : '';
+    
+    // UI Cập nhật siêu tốc
+    const pIdx = AppState.payments.findIndex(p => p.month === month && p.studentId === studentId);
+    if (newStatus) {
+        if (pIdx > -1) AppState.payments[pIdx].status = 'Đã đóng';
+        else AppState.payments.push({ month, studentId, status: 'Đã đóng' });
+    } else {
+        if (pIdx > -1) AppState.payments.splice(pIdx, 1);
+    }
+    
+    saveToCache();
+    document.getElementById('btn-generate-report').click();
+    showToast('Đã lưu trạng thái thanh toán!', 'success');
+    
+    // Lưu AppScript
+    fetchGAS('savePayment', { month, studentId, status: txtStatus });
+};
 
 /* --- 7. MODULE SETTING LỚP HỌC --- */
 function renderClassSettings() {

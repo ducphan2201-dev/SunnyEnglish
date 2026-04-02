@@ -38,6 +38,11 @@ function doPost(e) {
       result = updateSheetData("DiemDanh", "IDKey", idKey, [
         idKey, data.date, data.className, data.absents || "", data.lates || "", data.unexcusedAbsents || ""
       ]);
+    } else if (action === "savePayment") {
+      var payKey = data.month + "_" + data.studentId;
+      result = updateSheetData("ThanhToan", "IDKey", payKey, [
+        payKey, data.month, data.studentId, data.status || ""
+      ]);
     } else {
       throw new Error("Action không tồn tại!");
     }
@@ -111,9 +116,9 @@ function loadInitialDataCached() {
   if (attSheet && attSheet.getLastRow() > 1) {
     var attValues = attSheet.getRange(2, 1, attSheet.getLastRow() - 1, 6).getDisplayValues();
     
-    // Tạo mốc quá khứ 90 ngày (3 tháng)
+    // Tạo mốc quá khứ 365 ngày để quét Nợ cũ
     var filterDate = new Date();
-    filterDate.setDate(filterDate.getDate() - 90);
+    filterDate.setDate(filterDate.getDate() - 365);
     
     for (var k = 0; k < attValues.length; k++) {
        var rowA = attValues[k];
@@ -134,7 +139,19 @@ function loadInitialDataCached() {
     }
   }
   
-  var finalData = { classes: classData, students: studentData, attendances: attData };
+  // 4. Tải bảng Thanh Toán
+  var paymentSheet = ss.getSheetByName("ThanhToan");
+  var payData = [];
+  if (paymentSheet && paymentSheet.getLastRow() > 1) {
+    var payValues = paymentSheet.getRange(2, 1, paymentSheet.getLastRow() - 1, 4).getDisplayValues();
+    for (var m = 0; m < payValues.length; m++) {
+      if (payValues[m][0]) {
+        payData.push({ month: String(payValues[m][1] || ""), studentId: String(payValues[m][2] || ""), status: String(payValues[m][3] || "") });
+      }
+    }
+  }
+
+  var finalData = { classes: classData, students: studentData, attendances: attData, payments: payData };
   
   try {
      var jsonString = JSON.stringify(finalData);
@@ -221,6 +238,7 @@ function updateSheetData(sheetName, idColumnName, idValue, rowDataArray) {
     if (sheetName === "HocSinh") sheet.appendRow(["ID", "Name", "Class", "DOB", "EnrollDate", "Phone", "Eval", "Status"]);
     if (sheetName === "DiemDanh") sheet.appendRow(["IDKey", "date", "className", "absents", "lates", "unexcusedAbsents"]);
     if (sheetName === "CaiDatLop") sheet.appendRow(["ClassName", "Fee"]);
+    if (sheetName === "ThanhToan") sheet.appendRow(["IDKey", "Month", "StudentID", "Status"]);
   }
   
   var lastRow = sheet.getLastRow();
@@ -268,6 +286,6 @@ function processDeleteStudent(id) {
       }
     }
   }
-  CacheService.getScriptCache().remove('sunny_cache_data_v2');
+  CacheService.getScriptCache().remove(CACHE_KEY);
   return { status: 'success', message: 'Đã xóa học sinh ' + id };
 }
