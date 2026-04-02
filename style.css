@@ -87,7 +87,8 @@ body {
 .sidebar {
     width: 280px;
     background-color: var(--sidebar-bg);
-    border-right: 1px solid var(--border-color);
+    border-right: none;
+    box-shadow: 2px 0 15px rgba(0,0,0,0.03);
     display: flex;
     flex-direction: column;
     z-index: 10;
@@ -258,11 +259,15 @@ body {
 .card {
     background-color: var(--card-bg);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow-md);
+    border: 1px solid rgba(255, 255, 255, 0.5); /* Sáng viền giống Glass */
 }
-.card.p-4 { padding: 1.5rem; }
-.card-table { overflow: hidden; }
+.card.p-4 { padding: 2rem; }
+.card-table {
+    background-color: transparent;
+    border: none;
+    box-shadow: none;
+}
 
 /* STATS */
 .stats-grid {
@@ -375,12 +380,12 @@ body {
 }
 .form-control, .form-select {
     width: 100%;
-    padding: 0.75rem 1rem;
+    padding: 0.85rem 1.25rem;
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     background-color: var(--bg-color);
     color: var(--text-main);
-    font-size: 0.95rem;
+    font-size: 1rem;
     transition: var(--transition);
 }
 .form-control:focus, .form-select:focus {
@@ -390,11 +395,10 @@ body {
 }
 textarea.form-control { resize: vertical; }
 
-/* BUTTONS */
 .btn {
-    padding: 0.6rem 1.25rem;
+    padding: 0.75rem 1.5rem;
     border-radius: var(--radius-md);
-    font-weight: 500;
+    font-weight: 600;
     cursor: pointer;
     border: none;
     display: inline-flex;
@@ -402,37 +406,68 @@ textarea.form-control { resize: vertical; }
     justify-content: center;
     gap: 0.5rem;
     transition: var(--transition);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
+    box-shadow: var(--shadow-sm);
 }
 .btn.fluid { width: 100%; }
-.btn-primary { background-color: var(--primary); color: white; }
-.btn-primary:hover { background-color: var(--primary-hover); transform: translateY(-1px); }
+.btn-primary { 
+    background: linear-gradient(135deg, var(--primary) 0%, #f97316 100%);
+    color: white; 
+}
+.btn-primary:hover { 
+    transform: translateY(-2px); 
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
 .btn-secondary { background-color: var(--light); color: var(--text-main); border: 1px solid var(--border-color);}
 .btn-secondary:hover { background-color: var(--gray-200); }
-.btn-success { background-color: var(--success); color: white; }
-.btn-success:hover { background-color: #059669; }
+.btn-success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); color: white; }
+.btn-success:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
 
 /* TABLES */
-.table-responsive { overflow-x: auto; }
+.table-responsive { overflow-x: auto; padding-bottom: 1rem; }
 .data-table {
     width: 100%;
-    border-collapse: collapse;
-}
-.data-table th, .data-table td {
-    padding: 1rem 1.5rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
+    border-collapse: separate;
+    border-spacing: 0 8px;
+    margin-top: -8px;
 }
 .data-table th {
-    background-color: var(--light);
+    padding: 1rem 1.5rem;
+    text-align: left;
+    background-color: transparent;
     font-weight: 600;
     color: var(--text-muted);
     font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
+.data-table tbody tr {
+    background-color: var(--card-bg);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
 .data-table tbody tr:hover {
-    background-color: var(--light);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+    z-index: 2;
+    position: relative;
+}
+.data-table td {
+    padding: 1.2rem 1.5rem;
+    text-align: left;
+    border-top: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.95rem;
+}
+.data-table td:first-child {
+    border-left: 1px solid var(--border-color);
+    border-top-left-radius: var(--radius-md);
+    border-bottom-left-radius: var(--radius-md);
+}
+.data-table td:last-child {
+    border-right: 1px solid var(--border-color);
+    border-top-right-radius: var(--radius-md);
+    border-bottom-right-radius: var(--radius-md);
 }
 .badge {
     padding: 0.25rem 0.75rem;
